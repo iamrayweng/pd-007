@@ -1,0 +1,83 @@
+predmachlearn-007 course project document
+
+========================================================
+
+This is the project assignment work to the Practical Machine Learning lesson on the Coursera. 
+This work is to build a model to predict how well they do exercises by using the Weight Lifting Exercise Dataset. And the manner in hich they did the exercise is the "classe" variable in the dataset. So we basically will use any of the other variables to predict the "classe" variable.
+More information about the dataset is available here: **http://groupware.les.inf.puc-rio.br/har** 
+
+## Pre-Process the Data
+
+We've manually downloaded the data from **https://d396qusza40orc.cloudfront.net/predmachlearn/** and put them in our R working folder. Now we will load them in and perform some exploratory analysis.
+```{r,echo=FALSE,results='hide',warning=FALSE,message=FALSE}
+library(caret)
+library(plyr)
+library(ggplot2)
+library(Hmisc)
+library(randomForest)
+library(splines)
+```
+```{r}
+pml_training <- read.csv("pml-training.csv", header=TRUE, na.strings=c("NA","NaN", " ", "","#DIV/0!"))
+pml_testing <- read.csv("pml-testing.csv", header=TRUE, na.strings=c("NA","NaN", " ", "","#DIV/0!"))
+```
+
+Looking at the column names. There are 160 variables. And we are not going to show the full list of the varable names to keep the document clean and tight.
+```{r,results='hide'}
+names(pml_training)
+```
+Direct findings by looking at the names are:
+- Variables like user_name, and timestamp would have no use in the prediction.
+- The other variables can be groupped by the location of the sensor: belt, arm, dumbbell and forearm. And also there are 2nd level properies like roll, pitch, yaw.
+
+Now looking at an summary of the values. I'm not showing the return of this code for the same reason above.
+```{r,results='hide'}
+summary(pml_training)
+```
+We can find there are some variables which are totally or mostly empty. They would not be helpful to our prediction. For example:
+amplitude_yaw_forearm
+NA's   :19300  
+
+A look at our target variable
+```{r}
+table(pml_training$classe)
+```
+
+Remove the columns that 80% of them are NAs, 
+```{r}
+noNA<- pml_training[,!colSums(is.na(pml_training)) > nrow(pml_training) * 0.2]
+```
+Remove the user names and timestamps to reduce the number for features.
+```{r}
+rm.col <- grep("X|user_name|timestamp", names(noNA))
+noNamenoTime<- noNA[,-rm.col]
+```
+Check and remove the near-zero variance variables
+```{r}
+nzv.col <- nearZeroVar(noNamenoTime)
+pmlTR <- noNamenoTime[,-nzv.col]
+```
+
+Split the current training set again to training 75% and testing 25% datsets.
+```{r}
+inTrain <- createDataPartition(y=pmlTR$classe, p=0.75,list=FALSE)
+Training <- pmlTR[inTrain,]
+Testing <- pmlTR[-inTrain,]
+```
+
+## Traing/Fit a model
+Previously we learnt that there are only 5 values in classe, and variables can be fit in groups with the combination of the type of the excesise: "roll,pitch, yaw,magnet..." and the locations of where the sensors were placed: "arm, dumbbell, forearm...".
+So we would use the Random Forest method here.
+```{r}
+set.seed(9418)
+modFit <- randomForest(classe ~ ., data = Training)
+modFit
+pd <- predict(modFit, newdata=Testing)
+print(confusionMatrix(pd, Testing$classe), digits=4)
+```
+So here the trained model got over 99% out-of-sample accuracy against the heldback set.
+
+## Conclusion
+We applied a Random Forest algorithm in this analysis of the WLE data. And it worked pretty well and gave us an accuracy of 99% where the out-of-sample error is less than 1%. It was used on the prediction assignment as well, the 20 answers were all correct.
+
+
